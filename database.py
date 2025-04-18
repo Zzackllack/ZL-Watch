@@ -1,76 +1,86 @@
-import aiosqlite
+import os
+import sqlite3
+from datetime import datetime
 
-DB_PATH = "stats.db"
+# Ensure the DB lives next to this file
+BASE_DIR = os.path.dirname(__file__)
+DB_PATH = os.path.join(BASE_DIR, "stats.db")
 
-async def init_db():
-    """
-    Initialize the SQLite database and create necessary tables.
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            '''
-            CREATE TABLE IF NOT EXISTS message_counts (
-                user_id TEXT PRIMARY KEY,
-                count INTEGER NOT NULL
-            )
-            '''
+# Connect (or create) the SQLite database file
+conn = sqlite3.connect(DB_PATH)
+c = conn.cursor()
+
+
+def init_db():
+    c.execute(
+        """
+    CREATE TABLE IF NOT EXISTS message_counts (
+        user_id INTEGER PRIMARY KEY,
+        count INTEGER NOT NULL
+    )"""
+    )
+    c.execute(
+        """
+    CREATE TABLE IF NOT EXISTS active_voice (
+        user_id INTEGER PRIMARY KEY,
+        join_time TEXT NOT NULL
+    )"""
+    )
+    c.execute(
+        """
+    CREATE TABLE IF NOT EXISTS voice_times (
+        user_id INTEGER NOT NULL,
+        duration INTEGER NOT NULL
+    )"""
+    )
+    conn.commit()
+
+
+def increment_message(user_id: int):
+    c.execute("SELECT count FROM message_counts WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    if row:
+        c.execute(
+            "UPDATE message_counts SET count = count + 1 WHERE user_id = ?", (user_id,)
         )
-        await db.execute(
-            '''
-            CREATE TABLE IF NOT EXISTS join_counts (
-                user_id TEXT PRIMARY KEY,
-                count INTEGER NOT NULL
-            )
-            '''
+    else:
+        c.execute(
+            "INSERT INTO message_counts (user_id, count) VALUES (?, 1)", (user_id,)
         )
-        await db.commit()
+    conn.commit()
 
-async def increment_message(user_id: str):
-    """
-    Increment the message count for a user.
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            '''
-            INSERT INTO message_counts (user_id, count)
-            VALUES (?, 1)
-            ON CONFLICT(user_id) DO UPDATE SET count = count + 1
-            ''',
-            (user_id,)
-        )
-        await db.commit()
 
-async def increment_join(user_id: str):
-    """
-    Increment the join count for a user.
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            '''
-            INSERT INTO join_counts (user_id, count)
-            VALUES (?, 1)
-            ON CONFLICT(user_id) DO UPDATE SET count = count + 1
-            ''',
-            (user_id,)
-        )
-        await db.commit()
+def voice_join(user_id: int):
+    now = datetime.utcnow().isoformat()
+    c.execute(
+        "INSERT OR REPLACE INTO active_voice (user_id, join_time) VALUES (?, ?)",
+        (user_id, now),
+    )
+    conn.commit()
 
-async def get_stats(user_id: str):
-    """
-    Retrieve message and join counts for a user.
-    Returns a tuple (message_count, join_count).
-    """
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            'SELECT count FROM message_counts WHERE user_id = ?', (user_id,)
-        )
-        row = await cursor.fetchone()
-        msg_count = row[0] if row else 0
 
-        cursor = await db.execute(
-            'SELECT count FROM join_counts WHERE user_id = ?', (user_id,)
-        )
-        row = await cursor.fetchone()
-        join_count = row[0] if row else 0
+def voice_leave(user_id: int) -> int:
+    c.execute("SELECT join_time FROM active_voice WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    if not row:
+        return 0
+    join_time = datetime.fromisoformat(row[0])
+    duration = int((datetime.utcnow() - join_time).total_seconds())
+    c.execute("DELETE FROM active_voice WHERE user_id = ?", (user_id,))
+    c.execute(
+        "INSERT INTO voice_times (user_id, duration) VALUES (?, ?)", (user_id, duration)
+    )
+    conn.commit()
+    return duration
 
-        return msg_count, join_count
+
+def get_message_count(user_id: int) -> int:
+    c.execute("SELECT count FROM message_counts WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    return row[0] if row else 0
+
+
+def get_voice_time(user_id: int) -> int:
+    c.execute("SELECT SUM(duration) FROM voice_times WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    return row[0] or 0
