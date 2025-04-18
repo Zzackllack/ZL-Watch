@@ -9,6 +9,7 @@ from database import (
     get_message_count,
     get_message_counts_by_channel,
     get_voice_time,
+    get_voice_times_by_channel,
 )
 
 
@@ -19,7 +20,7 @@ class Stats(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Ignore bots themselves
+        # Ignore bots
         if message.author.bot:
             return
         increment_message(message.author.id, message.channel.id)
@@ -33,14 +34,14 @@ class Stats(commands.Cog):
     ):
         # Joined a VC
         if before.channel is None and after.channel is not None:
-            voice_join(member.id)
+            voice_join(member.id, after.channel.id)
         # Left a VC
         elif before.channel is not None and after.channel is None:
             voice_leave(member.id)
         # Switched VCs
         elif before.channel and after.channel and before.channel.id != after.channel.id:
             voice_leave(member.id)
-            voice_join(member.id)
+            voice_join(member.id, after.channel.id)
 
     @app_commands.command(
         name="stats",
@@ -52,26 +53,39 @@ class Stats(commands.Cog):
     ):
         member = member or interaction.user
 
-        # Fetch data
+        # Messages
         total_msgs = get_message_count(member.id)
-        per_chan = get_message_counts_by_channel(member.id)
-        total_seconds = get_voice_time(member.id)
-        hours, rem = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(rem, 60)
+        per_msgs = get_message_counts_by_channel(member.id)
 
-        # Build response
-        lines = [
+        # Voice
+        total_secs = get_voice_time(member.id)
+        per_voice = get_voice_times_by_channel(member.id)
+
+        # Format totals
+        msg_lines = [
             f"**{member.display_name}** has sent **{total_msgs}** messages:",
             f"> **Total:** {total_msgs}",
         ]
-        for chan_id, cnt in per_chan.items():
+        for chan_id, cnt in per_msgs.items():
             chan = self.bot.get_channel(chan_id)
             mention = chan.mention if chan else f"<#{chan_id}>"
-            lines.append(f"> **{mention}:** {cnt}")
+            msg_lines.append(f"> **{mention}:** {cnt}")
 
-        lines.append(f"\n**Voice time:** {hours}h {minutes}m {seconds}s")
+        hrs, rem = divmod(total_secs, 3600)
+        mins, secs = divmod(rem, 60)
+        voice_lines = [
+            f"\n**Voice time:** {hrs}h {mins}m {secs}s",
+            f"> **Total:** {hrs}h {mins}m {secs}s",
+        ]
+        for chan_id, sec in per_voice.items():
+            chan = self.bot.get_channel(chan_id)
+            mention = chan.mention if chan else f"<#{chan_id}>"
+            h, r = divmod(sec, 3600)
+            m, s = divmod(r, 60)
+            voice_lines.append(f"> **{mention}:** {h}h {m}m {s}s")
 
-        await interaction.response.send_message("\n".join(lines))
+        # Send it all
+        await interaction.response.send_message("\n".join(msg_lines + voice_lines))
 
 
 async def setup(bot: commands.Bot):

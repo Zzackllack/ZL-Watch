@@ -29,19 +29,21 @@ def init_db():
         PRIMARY KEY (user_id, channel_id)
     )"""
     )
-    # Active voice sessions
+    # Active voice sessions (now tracking channel)
     c.execute(
         """
     CREATE TABLE IF NOT EXISTS active_voice (
         user_id INTEGER PRIMARY KEY,
+        channel_id INTEGER NOT NULL,
         join_time TEXT NOT NULL
     )"""
     )
-    # Historical voice durations
+    # Historical voice durations per channel
     c.execute(
         """
     CREATE TABLE IF NOT EXISTS voice_times (
         user_id INTEGER NOT NULL,
+        channel_id INTEGER NOT NULL,
         duration INTEGER NOT NULL
     )"""
     )
@@ -94,25 +96,31 @@ def get_message_counts_by_channel(user_id: int) -> dict[int, int]:
     return {row[0]: row[1] for row in c.fetchall()}
 
 
-def voice_join(user_id: int):
+def voice_join(user_id: int, channel_id: int):
     now = datetime.utcnow().isoformat()
     c.execute(
-        "INSERT OR REPLACE INTO active_voice (user_id, join_time) VALUES (?, ?)",
-        (user_id, now),
+        "INSERT OR REPLACE INTO active_voice (user_id, channel_id, join_time) VALUES (?, ?, ?)",
+        (user_id, channel_id, now),
     )
     conn.commit()
 
 
 def voice_leave(user_id: int) -> int:
-    c.execute("SELECT join_time FROM active_voice WHERE user_id = ?", (user_id,))
+    c.execute(
+        "SELECT channel_id, join_time FROM active_voice WHERE user_id = ?", (user_id,)
+    )
     row = c.fetchone()
     if not row:
         return 0
-    join_time = datetime.fromisoformat(row[0])
-    duration = int((datetime.utcnow() - join_time).total_seconds())
+    channel_id, join_time = row
+    join_dt = datetime.fromisoformat(join_time)
+    duration = int((datetime.utcnow() - join_dt).total_seconds())
+    # remove active record
     c.execute("DELETE FROM active_voice WHERE user_id = ?", (user_id,))
+    # log the duration per channel
     c.execute(
-        "INSERT INTO voice_times (user_id, duration) VALUES (?, ?)", (user_id, duration)
+        "INSERT INTO voice_times (user_id, channel_id, duration) VALUES (?, ?, ?)",
+        (user_id, channel_id, duration),
     )
     conn.commit()
     return duration
@@ -122,3 +130,12 @@ def get_voice_time(user_id: int) -> int:
     c.execute("SELECT SUM(duration) FROM voice_times WHERE user_id = ?", (user_id,))
     row = c.fetchone()
     return row[0] or 0
+
+
+def get_voice_times_by_channel(user_id: int) -> dict[int, int]:
+    c.execute(
+        "SELECT channel_id, SUM(duration) FROM voice_times "
+        "WHERE user_id = ? GROUP BY channel_id ORDER BY SUM(duration) DESC",
+        (user_id,),
+    )
+    return {row[0]: row[1] for row in c.fetchall()}
