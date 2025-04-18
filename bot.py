@@ -3,6 +3,7 @@ import asyncio
 import discord
 from discord.ext import commands
 import config
+import logging
 
 # Define intents
 intents = discord.Intents.default()
@@ -11,6 +12,9 @@ intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 @bot.event
 async def on_ready():
