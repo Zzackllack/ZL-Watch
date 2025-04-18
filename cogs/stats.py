@@ -18,11 +18,11 @@ class Stats(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # ignore bots
+        # ignore bots & system messages
         if message.author.bot:
             return
+        # just record the count—don't re‐invoke commands here
         increment_message(message.author.id, message.channel.id)
-        await self.bot.process_commands(message)
 
     @commands.Cog.listener()
     async def on_voice_state_update(
@@ -31,13 +31,10 @@ class Stats(commands.Cog):
         before: discord.VoiceState,
         after: discord.VoiceState,
     ):
-        # joined a VC
         if before.channel is None and after.channel is not None:
             voice_join(member.id)
-        # left a VC
         elif before.channel is not None and after.channel is None:
             voice_leave(member.id)
-        # switched VCs
         elif before.channel and after.channel and before.channel.id != after.channel.id:
             voice_leave(member.id)
             voice_join(member.id)
