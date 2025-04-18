@@ -2,7 +2,7 @@ import os
 import sqlite3
 from datetime import datetime
 
-# Keep the DB in the project folder
+# Keep the DB next to this file
 BASE_DIR = os.path.dirname(__file__)
 DB_PATH = os.path.join(BASE_DIR, "stats.db")
 
@@ -11,7 +11,7 @@ c = conn.cursor()
 
 
 def init_db():
-    # Total messages per user
+    # Total message counts
     c.execute(
         """
     CREATE TABLE IF NOT EXISTS message_counts (
@@ -19,7 +19,7 @@ def init_db():
         count INTEGER NOT NULL
     )"""
     )
-    # Messages per user per channel
+    # Per-channel message counts
     c.execute(
         """
     CREATE TABLE IF NOT EXISTS message_channel_counts (
@@ -73,8 +73,7 @@ def increment_message(user_id: int, channel_id: int):
         )
     else:
         c.execute(
-            "INSERT INTO message_channel_counts "
-            "(user_id, channel_id, count) VALUES (?, ?, 1)",
+            "INSERT INTO message_channel_counts (user_id, channel_id, count) VALUES (?, ?, 1)",
             (user_id, channel_id),
         )
     conn.commit()

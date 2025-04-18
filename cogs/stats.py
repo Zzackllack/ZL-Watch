@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 from database import (
     init_db,
     increment_message,
@@ -18,10 +19,9 @@ class Stats(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # ignore bots & system messages
+        # Ignore bots themselves
         if message.author.bot:
             return
-        # just record the count—don't re‐invoke commands here
         increment_message(message.author.id, message.channel.id)
 
     @commands.Cog.listener()
@@ -31,28 +31,35 @@ class Stats(commands.Cog):
         before: discord.VoiceState,
         after: discord.VoiceState,
     ):
+        # Joined a VC
         if before.channel is None and after.channel is not None:
             voice_join(member.id)
+        # Left a VC
         elif before.channel is not None and after.channel is None:
             voice_leave(member.id)
+        # Switched VCs
         elif before.channel and after.channel and before.channel.id != after.channel.id:
             voice_leave(member.id)
             voice_join(member.id)
 
-    @commands.command(name="stats")
-    async def stats(self, ctx: commands.Context, member: discord.Member = None):
-        """Show message counts (total + per channel) and total voice time."""
-        member = member or ctx.author
+    @app_commands.command(
+        name="stats",
+        description="Show total + per-channel message counts and voice time for a user.",
+    )
+    @app_commands.describe(member="The member to view stats for (defaults to yourself)")
+    async def stats(
+        self, interaction: discord.Interaction, member: discord.Member = None
+    ):
+        member = member or interaction.user
 
-        # Messages
+        # Fetch data
         total_msgs = get_message_count(member.id)
         per_chan = get_message_counts_by_channel(member.id)
-
-        # Voice
         total_seconds = get_voice_time(member.id)
         hours, rem = divmod(total_seconds, 3600)
         minutes, seconds = divmod(rem, 60)
 
+        # Build response
         lines = [
             f"**{member.display_name}** has sent **{total_msgs}** messages:",
             f"> **Total:** {total_msgs}",
@@ -64,7 +71,7 @@ class Stats(commands.Cog):
 
         lines.append(f"\n**Voice time:** {hours}h {minutes}m {seconds}s")
 
-        await ctx.send("\n".join(lines))
+        await interaction.response.send_message("\n".join(lines))
 
 
 async def setup(bot: commands.Bot):
