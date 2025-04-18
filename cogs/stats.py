@@ -6,12 +6,13 @@ from database import (
     voice_join,
     voice_leave,
     get_message_count,
+    get_message_counts_by_channel,
     get_voice_time,
 )
 
 
 class Stats(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         init_db()
 
@@ -20,8 +21,7 @@ class Stats(commands.Cog):
         # ignore bots
         if message.author.bot:
             return
-        increment_message(message.author.id)
-        # ensure commands still work
+        increment_message(message.author.id, message.channel.id)
         await self.bot.process_commands(message)
 
     @commands.Cog.listener()
@@ -44,18 +44,31 @@ class Stats(commands.Cog):
 
     @commands.command(name="stats")
     async def stats(self, ctx: commands.Context, member: discord.Member = None):
-        """Show messages sent and total voice time."""
+        """Show message counts (total + per channel) and total voice time."""
         member = member or ctx.author
-        msg_count = get_message_count(member.id)
+
+        # Messages
+        total_msgs = get_message_count(member.id)
+        per_chan = get_message_counts_by_channel(member.id)
+
+        # Voice
         total_seconds = get_voice_time(member.id)
         hours, rem = divmod(total_seconds, 3600)
         minutes, seconds = divmod(rem, 60)
-        await ctx.send(
-            f"**{member.display_name}** has sent **{msg_count}** messages "
-            f"and spent **{hours}h {minutes}m {seconds}s** in voice channels."
-        )
+
+        lines = [
+            f"**{member.display_name}** has sent **{total_msgs}** messages:",
+            f"> **Total:** {total_msgs}",
+        ]
+        for chan_id, cnt in per_chan.items():
+            chan = self.bot.get_channel(chan_id)
+            mention = chan.mention if chan else f"<#{chan_id}>"
+            lines.append(f"> **{mention}:** {cnt}")
+
+        lines.append(f"\n**Voice time:** {hours}h {minutes}m {seconds}s")
+
+        await ctx.send("\n".join(lines))
 
 
-# discord.py 2.x requires an async setup function:
 async def setup(bot: commands.Bot):
     await bot.add_cog(Stats(bot))

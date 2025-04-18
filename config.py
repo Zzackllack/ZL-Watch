@@ -1,5 +1,6 @@
 import os
 
-# Fetch your bot token from the DISCORD_TOKEN environment variable
+# Your bot token should be in the DISCORD_TOKEN env var
 TOKEN = os.getenv("DISCORD_TOKEN")
-print("Token:", TOKEN)
+if TOKEN is None:
+    raise ValueError("DISCORD_TOKEN environment variable not set.")

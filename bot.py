@@ -1,9 +1,12 @@
+import logging
 import os
 import asyncio
 import discord
 from discord.ext import commands
 import config
-import logging
+
+# Enable discord.py's INFO‑level logging again
+logging.basicConfig(level=logging.INFO)
 
 # Define intents
 intents = discord.Intents.default()
@@ -12,9 +15,6 @@ intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 
 @bot.event
 async def on_ready():
@@ -22,15 +22,13 @@ async def on_ready():
 
 
 async def main():
-    # Dynamically load all cogs in the cogs/ folder (awaiting each)
+    # Dynamically load all cogs in the cogs/ folder
     cogs_dir = os.path.join(os.path.dirname(__file__), "cogs")
     for filename in os.listdir(cogs_dir):
         if filename.endswith(".py"):
             await bot.load_extension(f"cogs.{filename[:-3]}")
-    # Start the bot
     await bot.start(config.TOKEN)
 
 
 if __name__ == "__main__":
-    # asyncio.run will set up the loop and call main()
     asyncio.run(main())
