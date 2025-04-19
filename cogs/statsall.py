@@ -16,21 +16,19 @@ class StatsAll(commands.Cog):
         description="Show server‑wide stats: total messages, top text & voice channels.",
     )
     async def statsall(self, interaction: discord.Interaction):
-        # Open a fresh connection to the same DB
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
 
-        # 1) Total messages
+        # Total messages (all users)
         c.execute("SELECT SUM(count) FROM message_counts;")
         total_msgs = c.fetchone()[0] or 0
 
-        # 2) Top text channel by messages
+        # Top text channel (from aggregated table)
         c.execute(
             """
-            SELECT channel_id, SUM(count) AS total 
-              FROM message_channel_counts 
-          GROUP BY channel_id 
-          ORDER BY total DESC 
+            SELECT channel_id, count
+              FROM channel_message_counts
+          ORDER BY count DESC
              LIMIT 1;
         """
         )
@@ -40,17 +38,16 @@ class StatsAll(commands.Cog):
         else:
             top_text_id, top_text_count = None, 0
 
-        # 3) Total voice time (seconds)
+        # Total voice time (all users)
         c.execute("SELECT SUM(duration) FROM voice_times;")
         total_voice_secs = c.fetchone()[0] or 0
 
-        # 4) Top voice channel by total time
+        # Top voice channel (from aggregated table)
         c.execute(
             """
-            SELECT channel_id, SUM(duration) AS total 
-              FROM voice_times 
-          GROUP BY channel_id 
-          ORDER BY total DESC 
+            SELECT channel_id, duration
+              FROM channel_voice_times
+          ORDER BY duration DESC
              LIMIT 1;
         """
         )
@@ -62,22 +59,20 @@ class StatsAll(commands.Cog):
 
         conn.close()
 
-        # Helper to format seconds → Hh Mm Ss
         def fmt(sec: int) -> str:
             h, rem = divmod(sec, 3600)
             m, s = divmod(rem, 60)
             return f"{h}h {m}m {s}s"
 
-        # Build embed
         embed = discord.Embed(
             title="🌐 Server‑wide Stats",
             color=discord.Color.blurple(),
             timestamp=discord.utils.utcnow(),
         )
-
         embed.add_field(
             name="💬 Total Messages", value=f"**{total_msgs:,}**", inline=False
         )
+
         if top_text_id:
             chan = self.bot.get_channel(top_text_id)
             mention = chan.mention if chan else f"<#{top_text_id}>"
@@ -94,6 +89,7 @@ class StatsAll(commands.Cog):
             value=f"**{fmt(total_voice_secs)}**",
             inline=False,
         )
+
         if top_voice_id:
             chan = self.bot.get_channel(top_voice_id)
             mention = chan.mention if chan else f"<#{top_voice_id}>"

@@ -6,6 +6,7 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(__file__)
 DB_PATH = os.path.join(BASE_DIR, "stats.db")
 
+# Create/connect to the SQLite database
 conn = sqlite3.connect(DB_PATH)
 c = conn.cursor()
 
@@ -14,39 +15,62 @@ def init_db():
     # Total message counts
     c.execute(
         """
-    CREATE TABLE IF NOT EXISTS message_counts (
-        user_id INTEGER PRIMARY KEY,
-        count INTEGER NOT NULL
-    )"""
+        CREATE TABLE IF NOT EXISTS message_counts (
+            user_id INTEGER PRIMARY KEY,
+            count INTEGER NOT NULL
+        )
+        """
     )
     # Per-channel message counts
     c.execute(
         """
-    CREATE TABLE IF NOT EXISTS message_channel_counts (
-        user_id INTEGER NOT NULL,
-        channel_id INTEGER NOT NULL,
-        count INTEGER NOT NULL,
-        PRIMARY KEY (user_id, channel_id)
-    )"""
+        CREATE TABLE IF NOT EXISTS message_channel_counts (
+            user_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            count INTEGER NOT NULL,
+            PRIMARY KEY (user_id, channel_id)
+        )
+        """
     )
     # Active voice sessions (now tracking channel)
     c.execute(
         """
-    CREATE TABLE IF NOT EXISTS active_voice (
-        user_id INTEGER PRIMARY KEY,
-        channel_id INTEGER NOT NULL,
-        join_time TEXT NOT NULL
-    )"""
+        CREATE TABLE IF NOT EXISTS active_voice (
+            user_id INTEGER PRIMARY KEY,
+            channel_id INTEGER NOT NULL,
+            join_time TEXT NOT NULL
+        )
+        """
     )
     # Historical voice durations per channel
     c.execute(
         """
-    CREATE TABLE IF NOT EXISTS voice_times (
-        user_id INTEGER NOT NULL,
-        channel_id INTEGER NOT NULL,
-        duration INTEGER NOT NULL
-    )"""
+        CREATE TABLE IF NOT EXISTS voice_times (
+            user_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            duration INTEGER NOT NULL
+        )
+        """
     )
+    # Aggregated messages per channel (all users)
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS channel_message_counts (
+            channel_id INTEGER PRIMARY KEY,
+            count INTEGER NOT NULL
+        )
+        """
+    )
+    # Aggregated voice time per channel (all users)
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS channel_voice_times (
+            channel_id INTEGER PRIMARY KEY,
+            duration INTEGER NOT NULL
+        )
+        """
+    )
+
     conn.commit()
 
 
@@ -55,12 +79,15 @@ def increment_message(user_id: int, channel_id: int):
     c.execute("SELECT count FROM message_counts WHERE user_id = ?", (user_id,))
     if c.fetchone():
         c.execute(
-            "UPDATE message_counts SET count = count + 1 WHERE user_id = ?", (user_id,)
+            "UPDATE message_counts SET count = count + 1 WHERE user_id = ?",
+            (user_id,),
         )
     else:
         c.execute(
-            "INSERT INTO message_counts (user_id, count) VALUES (?, 1)", (user_id,)
+            "INSERT INTO message_counts (user_id, count) VALUES (?, 1)",
+            (user_id,),
         )
+
     # per‑channel count
     c.execute(
         "SELECT count FROM message_channel_counts WHERE user_id = ? AND channel_id = ?",
@@ -75,9 +102,11 @@ def increment_message(user_id: int, channel_id: int):
         )
     else:
         c.execute(
-            "INSERT INTO message_channel_counts (user_id, channel_id, count) VALUES (?, ?, 1)",
+            "INSERT INTO message_channel_counts "
+            "(user_id, channel_id, count) VALUES (?, ?, 1)",
             (user_id, channel_id),
         )
+
     conn.commit()
 
 
@@ -112,9 +141,11 @@ def voice_leave(user_id: int) -> int:
     row = c.fetchone()
     if not row:
         return 0
+
     channel_id, join_time = row
     join_dt = datetime.fromisoformat(join_time)
     duration = int((datetime.utcnow() - join_dt).total_seconds())
+
     # remove active record
     c.execute("DELETE FROM active_voice WHERE user_id = ?", (user_id,))
     # log the duration per channel
