@@ -2,9 +2,13 @@ import os
 import sqlite3
 from datetime import datetime
 
-# Keep the DB next to this file
+# Determine DB path from env or default to ./db/stats.db
 BASE_DIR = os.path.dirname(__file__)
-DB_PATH = os.path.join(BASE_DIR, "stats.db")
+DEFAULT_DB_DIR = os.path.join(BASE_DIR, "db")
+DB_PATH = os.getenv("DB_PATH", os.path.join(DEFAULT_DB_DIR, "stats.db"))
+
+# Ensure the parent folder exists so SQLite can create the file
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 # Create/connect to the SQLite database
 conn = sqlite3.connect(DB_PATH)
