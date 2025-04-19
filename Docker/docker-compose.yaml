@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  zl-watch:
+    build: .
+    container_name: zl-watch
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Persist the SQLite DB between restarts
+    volumes:
+      - ./stats.db:/app/stats.db
+    # (optional) expose logs folder or other mounts here
+    # ports: []  # no ports to expose
