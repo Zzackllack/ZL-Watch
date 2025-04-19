@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  zl-watch:
+    build: .
+    container_name: zl-watch
+    restart: unless-stopped
+    # Instead of relying solely on env_file, put critical vars here:
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GUILD_ID=${GUILD_ID}
+      - DB_PATH=/app/db/stats.db
+    # Persist the SQLite DB between restarts
+    volumes:
+      # Mount only the db folder so SQLite can create/open the file
+      - ./db:/app/db
+      # (optional) expose logs folder or other mounts here
+    # ports: []  # no ports to expose
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f bot.py || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
