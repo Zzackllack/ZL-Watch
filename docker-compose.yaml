@@ -5,8 +5,10 @@ services:
     build: .
     container_name: zl-watch
     restart: unless-stopped
-    env_file:
-      - .env
+    # Instead of relying solely on env_file, put critical vars here:
+    environment: 
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GUILD_ID=${GUILD_ID}
     # Persist the SQLite DB between restarts
     volumes:
       - ./stats.db:/app/stats.db
