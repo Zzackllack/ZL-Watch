@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 import os
 import logging
-import asyncio
 from dotenv import load_dotenv
 from discord import app_commands, Interaction
 
