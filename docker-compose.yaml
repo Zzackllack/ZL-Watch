@@ -9,6 +9,7 @@ services:
       - .env
     # Persist the SQLite DB between restarts
     volumes:
+      - .:/app
       - ./stats.db:/app/stats.db
     # (optional) expose logs folder or other mounts here
     # ports: []  # no ports to expose
