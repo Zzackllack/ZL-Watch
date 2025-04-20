@@ -23,7 +23,7 @@ def init_db():
             user_id INTEGER PRIMARY KEY,
             count INTEGER NOT NULL
         )
-        """
+    """
     )
     # Per-channel message counts
     c.execute(
@@ -34,7 +34,7 @@ def init_db():
             count INTEGER NOT NULL,
             PRIMARY KEY (user_id, channel_id)
         )
-        """
+    """
     )
     # Active voice sessions (now tracking channel)
     c.execute(
@@ -44,7 +44,7 @@ def init_db():
             channel_id INTEGER NOT NULL,
             join_time TEXT NOT NULL
         )
-        """
+    """
     )
     # Historical voice durations per channel
     c.execute(
@@ -54,7 +54,7 @@ def init_db():
             channel_id INTEGER NOT NULL,
             duration INTEGER NOT NULL
         )
-        """
+    """
     )
     # Aggregated messages per channel (all users)
     c.execute(
@@ -63,7 +63,7 @@ def init_db():
             channel_id INTEGER PRIMARY KEY,
             count INTEGER NOT NULL
         )
-        """
+    """
     )
     # Aggregated voice time per channel (all users)
     c.execute(
@@ -72,9 +72,19 @@ def init_db():
             channel_id INTEGER PRIMARY KEY,
             duration INTEGER NOT NULL
         )
-        """
+    """
     )
-
+    # Achievements table
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS achievements (
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            awarded_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, name)
+        )
+    """
+    )
     conn.commit()
 
 
@@ -91,7 +101,6 @@ def increment_message(user_id: int, channel_id: int):
             "INSERT INTO message_counts (user_id, count) VALUES (?, 1)",
             (user_id,),
         )
-
     # per‑channel count
     c.execute(
         "SELECT count FROM message_channel_counts WHERE user_id = ? AND channel_id = ?",
@@ -106,11 +115,9 @@ def increment_message(user_id: int, channel_id: int):
         )
     else:
         c.execute(
-            "INSERT INTO message_channel_counts "
-            "(user_id, channel_id, count) VALUES (?, ?, 1)",
+            "INSERT INTO message_channel_counts (user_id, channel_id, count) VALUES (?, ?, 1)",
             (user_id, channel_id),
         )
-
     conn.commit()
 
 
@@ -145,11 +152,9 @@ def voice_leave(user_id: int) -> int:
     row = c.fetchone()
     if not row:
         return 0
-
     channel_id, join_time = row
     join_dt = datetime.fromisoformat(join_time)
     duration = int((datetime.utcnow() - join_dt).total_seconds())
-
     # remove active record
     c.execute("DELETE FROM active_voice WHERE user_id = ?", (user_id,))
     # log the duration per channel
@@ -174,3 +179,19 @@ def get_voice_times_by_channel(user_id: int) -> dict[int, int]:
         (user_id,),
     )
     return {row[0]: row[1] for row in c.fetchall()}
+
+def has_achievement(user_id: int, name: str) -> bool:
+    c.execute(
+        "SELECT 1 FROM achievements WHERE user_id = ? AND name = ?",
+        (user_id, name),
+    )
+    return c.fetchone() is not None
+
+
+def add_achievement(user_id: int, name: str):
+    now = datetime.utcnow().isoformat()
+    c.execute(
+        "INSERT OR IGNORE INTO achievements (user_id, name, awarded_at) VALUES (?, ?, ?)",
+        (user_id, name, now),
+    )
+    conn.commit()

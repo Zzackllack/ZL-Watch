@@ -11,7 +11,17 @@ from database import (
     get_message_counts_by_channel,
     get_voice_time,
     get_voice_times_by_channel,
+    has_achievement,
+    add_achievement,
 )
+
+# Define message milestones and their announcement titles
+MESSAGE_MILESTONES = {
+    100: "🎉 100 Messages Milestone!",
+    500: "🏅 500 Messages Champion!",
+    1000: "🌟 1,000 Messages Legend!",
+    5000: "🚀 5,000 Messages Master!",
+}
 
 
 class StatsView(View):
@@ -81,6 +91,31 @@ class Stats(commands.Cog):
             return
         increment_message(message.author.id, message.channel.id)
 
+        # Check for message-count achievements
+        total = get_message_count(message.author.id)
+        if total in MESSAGE_MILESTONES:
+            ach_name = f"messages_{total}"
+            if not has_achievement(message.author.id, ach_name):
+                add_achievement(message.author.id, ach_name)
+                # Announce achievement
+                try:
+                    await message.channel.send(
+                        embed=discord.Embed(
+                            title=MESSAGE_MILESTONES[total],
+                            description=(
+                                f"Congratulations {message.author.mention}! "
+                                f"You've just sent **{total}** messages!"
+                            ),
+                            color=discord.Color.gold(),
+                            timestamp=discord.utils.utcnow(),
+                        )
+                    )
+                except Exception:
+                    # Log but don’t raise in listener
+                    self.bot.logger.error(
+                        "Failed to announce achievement", exc_info=True
+                    )
+
     @commands.Cog.listener()
     async def on_voice_state_update(
         self,
@@ -101,7 +136,7 @@ class Stats(commands.Cog):
 
     @app_commands.command(
         name="stats",
-        description="Show fancy stats (total + per-channel) for messages & voice time.",
+        description="Show fancy stats (total + per-channel) for messages & voice time, with achievements.",
     )
     @app_commands.describe(member="Which member to show stats for (defaults to you)")
     async def stats(
