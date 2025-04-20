@@ -62,33 +62,80 @@ class Compare(commands.Cog):
                 ch = self.bot.get_channel(cid)
                 return ch.mention if ch else f"<#{cid}>"
             return "N/A"
-
-        # Build comparison embed
-        embed = discord.Embed(
-            title=f"⚖️ Comparing {user1.display_name} vs. {user2.display_name}",
-            color=discord.Color.blurple(),
+        
+        # Create embed for first user
+        embed1 = discord.Embed(
+            title=f"📊 Stats for {user1.display_name}",
+            color=discord.Color.blue(),
             timestamp=discord.utils.utcnow(),
         )
-
-        # Messages comparison
-        msgs_field = (
-            f"**Total:** {msgs1:,} vs {msgs2:,}\n"
-            f"**Top Channel:** {mention_chan(top_msg_chan1[0])} ({top_msg_chan1[1]}) vs "
-            f"{mention_chan(top_msg_chan2[0])} ({top_msg_chan2[1]})"
+        embed1.set_thumbnail(url=user1.display_avatar.url)
+        
+        # Message info for user1
+        msg_field1 = (
+            f"**Total Messages:** {msgs1:,}\n"
+            f"**Top Channel:** {mention_chan(top_msg_chan1[0])} ({top_msg_chan1[1]:,})"
         )
-        embed.add_field(name="💬 Messages", value=msgs_field, inline=False)
-
-        # Voice comparison
-        voice_field = (
-            f"**Total:** {_format_duration(voice1)} vs {_format_duration(voice2)}\n"
-            f"**Top Channel:** {mention_chan(top_voice_chan1[0])} "
-            f"({_format_duration(top_voice_chan1[1])}) vs "
-            f"{mention_chan(top_voice_chan2[0])} "
-            f"({_format_duration(top_voice_chan2[1])})"
+        embed1.add_field(name="💬 Message Activity", value=msg_field1, inline=False)
+        
+        # Voice info for user1
+        voice_field1 = (
+            f"**Total Time:** {_format_duration(voice1)}\n"
+            f"**Top Channel:** {mention_chan(top_voice_chan1[0])} ({_format_duration(top_voice_chan1[1])})"
         )
-        embed.add_field(name="🔊 Voice Time", value=voice_field, inline=False)
-
-        await interaction.followup.send(embed=embed)
+        embed1.add_field(name="🔊 Voice Activity", value=voice_field1, inline=False)
+        
+        # Create embed for second user
+        embed2 = discord.Embed(
+            title=f"📊 Stats for {user2.display_name}",
+            color=discord.Color.green(),
+            timestamp=discord.utils.utcnow(),
+        )
+        embed2.set_thumbnail(url=user2.display_avatar.url)
+        
+        # Message info for user2
+        msg_field2 = (
+            f"**Total Messages:** {msgs2:,}\n"
+            f"**Top Channel:** {mention_chan(top_msg_chan2[0])} ({top_msg_chan2[1]:,})"
+        )
+        embed2.add_field(name="💬 Message Activity", value=msg_field2, inline=False)
+        
+        # Voice info for user2
+        voice_field2 = (
+            f"**Total Time:** {_format_duration(voice2)}\n"
+            f"**Top Channel:** {mention_chan(top_voice_chan2[0])} ({_format_duration(top_voice_chan2[1])})"
+        )
+        embed2.add_field(name="🔊 Voice Activity", value=voice_field2, inline=False)
+        
+        # Create a comparison embed to show differences
+        comparison = discord.Embed(
+            title="⚖️ Head-to-Head Comparison",
+            color=discord.Color.gold(),
+            description=f"Comparing {user1.mention} vs {user2.mention}"
+        )
+        
+        # Message difference
+        msg_diff = msgs1 - msgs2
+        if msg_diff > 0:
+            msg_comp = f"{user1.display_name} has **{abs(msg_diff):,} more** messages than {user2.display_name}"
+        elif msg_diff < 0:
+            msg_comp = f"{user2.display_name} has **{abs(msg_diff):,} more** messages than {user1.display_name}"
+        else:
+            msg_comp = f"Both users have the same number of messages: **{msgs1:,}**"
+        comparison.add_field(name="Message Comparison", value=msg_comp, inline=False)
+        
+        # Voice time difference
+        voice_diff = voice1 - voice2
+        if voice_diff > 0:
+            voice_comp = f"{user1.display_name} has **{_format_duration(abs(voice_diff))} more** voice time than {user2.display_name}"
+        elif voice_diff < 0:
+            voice_comp = f"{user2.display_name} has **{_format_duration(abs(voice_diff))} more** voice time than {user1.display_name}"
+        else:
+            voice_comp = f"Both users have the same voice time: **{_format_duration(voice1)}**"
+        comparison.add_field(name="Voice Time Comparison", value=voice_comp, inline=False)
+        
+        # Send all embeds
+        await interaction.followup.send(embeds=[embed1, embed2, comparison])
 
 
 async def setup(bot: commands.Bot):
